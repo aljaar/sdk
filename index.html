@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+  <link href='https://api.mapbox.com/mapbox-gl-js/v2.8.1/mapbox-gl.css' rel='stylesheet' />
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    body, section, form, #profile {
+      display: flex;
+      flex-direction: column;
+      gap: 1em;
+    }
+    .row {
+      display: flex;
+      gap: 1em;
+    }
+    .row * {
+      flex: 1 1 0%;
+    }
+
+    button, input, select {
+      padding: 8px 0 !important;
+      font-size: large;
+      border: 1px solid black;
+    }
+    section {
+      padding: 2em;
+      border: 1px solid black;
+    }
+  </style>
+</head>
+<body>
+  <main class="grid grid-cols-2 gap-3">
+    <section class="auth">
+      <div id="profile"></div>
+
+      <button id="do-signin">Sign In</button>
+      <button id="do-signin-google">Sign In with Google</button>
+      <button id="do-signup">Sign Up</button>
+      <button id="do-signout">Sign Out</button>
+    </section>
+  
+    <section class="products">
+      <button id="fetch-my-products">Fetch All My Products</button>
+  
+      <div class="row">
+        <select class="product-id-lists" id="product-id-detail"></select>
+        <button id="detail-product" type="button">Detail Product</button>
+      </div>
+  
+      <form id="form-create-product">
+        <input type="file" id="product-image" name="images" multiple>
+  
+        <button type="submit">Buat Product</button>
+      </form>
+  
+      <button id="edit-product" type="button">Edit Product</button>
+      
+      <div class="row">
+        <select class="product-id-lists" id="product-id-delete"></select>
+        <button id="delete-product" type="button">Delete Product</button>
+      </div>
+  
+      <div class="row">
+        <select class="product-id-lists" id="product-id-like"></select>
+        <button id="like-product" type="button">Like Product</button>
+      </div>
+    </section>
+  
+    <section class="tags">
+      <input type="text" name="tag" id="search-tags">
+      <button id="fetch-tags">Fetch Tags</button>
+      
+      <div class="row">
+        <select class="product-id-lists-available" id="product-id-request"></select>
+        <button id="request-product" type="button">Request Product</button>
+      </div>
+
+      <div class="row">
+        <select class="product-id-lists-transactions" id="product-id-response"></select>
+        <div class="row">
+          <button id="approve-product" type="button">Approve Product</button>
+          <button id="reject-product" type="button">Reject Product</button>
+        </div>
+      </div>
+    </section>
+  
+    <section class="maps">
+      <div id='map' style='width: 100%; height: 500px;'></div>
+    </section>
+  </main>
+
+  <script type="module" src="script.js"></script>
+</body>
+</html>

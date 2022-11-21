@@ -1,0 +1,34 @@
+{
+  "name": "aljaar-sdk",
+  "version": "1.0.0",
+  "description": "",
+  "type": "module",
+  "source": "sdk/src/index.js",
+  "exports": {
+    "require": "./sdk/dist/aljaar-sdk.cjs",
+    "default": "./sdk/dist/aljaar-sdk.modern.js"
+  },
+  "main": "./sdk/dist/aljaar-sdk.cjs",
+  "module": "./sdk/dist/aljaar-sdk.module.js",
+  "unpkg": "./sdk/dist/aljaar-sdk.umd.js",
+  "scripts": {
+    "sdk:build": "microbundle",
+    "sdk:dev": "microbundle watch",
+    "test:dev": "vite"
+  },
+  "keywords": [],
+  "author": "Ryan Aunur Rassyid <ryandevstudio@gmail.com>",
+  "license": "ISC",
+  "devDependencies": {
+    "@faker-js/faker": "^7.6.0",
+    "@supabase/supabase-js": "^2.0.5",
+    "mapbox-gl": "^2.10.0",
+    "microbundle": "^0.15.1",
+    "vite": "^3.2.3"
+  },
+  "dependencies": {
+    "joi": "^17.7.0",
+    "mitt": "^3.0.0",
+    "uuid": "^9.0.0"
+  }
+}

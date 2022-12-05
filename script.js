@@ -15,12 +15,12 @@ const service = useSDK({
 
 Mapbox.accessToken = 'pk.eyJ1IjoicnlhbmF1bnVyIiwiYSI6ImNrN3FhdWlzNzAxbDEzZm52bHZwZm8yNGwifQ.h60r6ue0FMfXHfpiF96tZg';
 
-const map = new Mapbox.Map({
-  container: 'map',
-  style: 'mapbox://styles/mapbox/dark-v10',
-  zoom: 16,
-  center: [112.7419, -7.2484],
-});
+// const map = new Mapbox.Map({
+//   container: 'map',
+//   style: 'mapbox://styles/mapbox/dark-v10',
+//   zoom: 16,
+//   center: [112.7419, -7.2484],
+// });
 
 function useButton(selector) {
   return document.querySelector(selector);
@@ -34,98 +34,98 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }).then(console.log);
 
-  const loadImageMarker = () => new Promise((resolve) => {
-    map.loadImage('https://docs.mapbox.com/mapbox-gl-js/assets/custom_marker.png', (error, image) => {
-      resolve(image);
-    });
-  });
+  // const loadImageMarker = () => new Promise((resolve) => {
+  //   map.loadImage('https://docs.mapbox.com/mapbox-gl-js/assets/custom_marker.png', (error, image) => {
+  //     resolve(image);
+  //   });
+  // });
 
-  map.on('load', () => {
-    map.addControl(new Mapbox.NavigationControl());
+  // map.on('load', () => {
+  //   map.addControl(new Mapbox.NavigationControl());
 
-    service.lists.nearMap(200).then(async function ({ data }) {
-      const image = await loadImageMarker();
+  //   service.lists.nearMap(200).then(async function ({ data }) {
+  //     const image = await loadImageMarker();
   
-      map.addImage('custom-marker', image);
-      map.addSource('points', {
-        type: 'geojson',
-        cluster: true,
-        clusterRadius: 80,
-        data
-      });
+  //     map.addImage('custom-marker', image);
+  //     map.addSource('points', {
+  //       type: 'geojson',
+  //       cluster: true,
+  //       clusterRadius: 80,
+  //       data
+  //     });
 
-      // Menampilkan circle pada cluster
-      map.addLayer({
-        id: 'clusters',
-        type: 'circle',
-        source: 'points',
-        filter: ['has', 'point_count'],
-        paint: {
-          'circle-color': '#11b4da',
-          'circle-radius': 18,
-          'circle-stroke-width': 1,
-          'circle-stroke-color': '#fff'
-        }
-      });
+  //     // Menampilkan circle pada cluster
+  //     map.addLayer({
+  //       id: 'clusters',
+  //       type: 'circle',
+  //       source: 'points',
+  //       filter: ['has', 'point_count'],
+  //       paint: {
+  //         'circle-color': '#11b4da',
+  //         'circle-radius': 18,
+  //         'circle-stroke-width': 1,
+  //         'circle-stroke-color': '#fff'
+  //       }
+  //     });
 
-      // Menampilkan layer jumlah cluster
-      map.addLayer({
-        id: 'cluster-count',
-        type: 'symbol',
-        source: 'points',
-        filter: ['has', 'point_count'],
-        layout: {
-          'text-field': '{point_count_abbreviated}',
-          'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
-          'text-size': 12,
-        }
-      });
+  //     // Menampilkan layer jumlah cluster
+  //     map.addLayer({
+  //       id: 'cluster-count',
+  //       type: 'symbol',
+  //       source: 'points',
+  //       filter: ['has', 'point_count'],
+  //       layout: {
+  //         'text-field': '{point_count_abbreviated}',
+  //         'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
+  //         'text-size': 12,
+  //       }
+  //     });
 
-      map.addLayer({
-        id: 'unclustered-point',
-        type: 'circle',
-        source: 'points',
-        filter: ['!', ['has', 'point_count']],
-        paint: {
-          'circle-color': '#11b4da',
-          'circle-radius': 12,
-          'circle-stroke-width': 1,
-          'circle-stroke-color': '#fff'
-        }
-      });
+  //     map.addLayer({
+  //       id: 'unclustered-point',
+  //       type: 'circle',
+  //       source: 'points',
+  //       filter: ['!', ['has', 'point_count']],
+  //       paint: {
+  //         'circle-color': '#11b4da',
+  //         'circle-radius': 12,
+  //         'circle-stroke-width': 1,
+  //         'circle-stroke-color': '#fff'
+  //       }
+  //     });
 
-      map.on('click', 'clusters', (e) => {
-        const features = map.queryRenderedFeatures(e.point, {
-          layers: ['clusters']
-        });
-        const clusterId = features[0].properties.cluster_id;
+  //     map.on('click', 'clusters', (e) => {
+  //       const features = map.queryRenderedFeatures(e.point, {
+  //         layers: ['clusters']
+  //       });
+  //       const clusterId = features[0].properties.cluster_id;
         
-        map.getSource('points').getClusterExpansionZoom(
-          clusterId, (err, zoom) => {
-            if (err) return;
+  //       map.getSource('points').getClusterExpansionZoom(
+  //         clusterId, (err, zoom) => {
+  //           if (err) return;
          
-            map.easeTo({
-              center: features[0].geometry.coordinates,
-              zoom: zoom
-            });
-          }
-        );
-      });
+  //           map.easeTo({
+  //             center: features[0].geometry.coordinates,
+  //             zoom: zoom
+  //           });
+  //         }
+  //       );
+  //     });
 
-      map.on('click', 'unclustered-point', (e) => {
-        const coordinates = e.features[0].geometry.coordinates.slice();
+  //     map.on('click', 'unclustered-point', (e) => {
+  //       const coordinates = e.features[0].geometry.coordinates.slice();
          
-        // Ensure that if the map is zoomed out such that
-        // multiple copies of the feature are visible, the
-        // popup appears over the copy being pointed to.
-        while (Math.abs(e.lngLat.lng - coordinates[0]) > 180) {
-        coordinates[0] += e.lngLat.lng > coordinates[0] ? 360 : -360;
-        }
+  //       // Ensure that if the map is zoomed out such that
+  //       // multiple copies of the feature are visible, the
+  //       // popup appears over the copy being pointed to.
+  //       while (Math.abs(e.lngLat.lng - coordinates[0]) > 180) {
+  //       coordinates[0] += e.lngLat.lng > coordinates[0] ? 360 : -360;
+  //       }
          
-        console.log(e.features[0].properties, coordinates);
-      });
-    });
-  });
+  //       console.log(e.features[0].properties, coordinates);
+  //     });
+  //   });
+  // });
 
   const productLists = document.querySelectorAll('.product-id-lists');
   const { data: products } = await service.raw.from("products").select("id,user_id");
@@ -143,6 +143,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   const transactionLists = document.querySelectorAll('.product-id-lists-transactions');
   const { data: transactions } = await service.transaction.waiting();
+
+  console.log({ transactions })
 
   transactionLists.forEach(listELement => 
     listELement.innerHTML = transactions.map(({ id }) => `<option value="${id}">TX: ${id}</option>`).join(''));
@@ -169,13 +171,17 @@ useButton('#do-signin-google').addEventListener('click', async () => {
 
 useButton('#do-signup').addEventListener('click', async () => {
   const { data, error } = await service.auth.signUp({
-    full_name: 'Ryan Aunur Rassyid',
+    full_name: 'M. Iqbal Panduwinata',
     email: 'nyanhashmail@gmail.com',
     password: 'testpassword',
     phone: '+6285755504990'
   })
 
   console.log({ data, error })
+});
+
+useButton('#do-reset-password').addEventListener('click', async () => {
+  service.auth.resetPassword('nyanhashmail@gmail.com').then(console.log)
 });
 
 document.querySelector('#do-signout').addEventListener('click', async () => {
@@ -275,24 +281,15 @@ document.querySelector('#search-tags').addEventListener('input', async (event) =
   console.table(tags);
 });
 
-service.emitter.on('aljaar:on:auth', async ({ event, session }) => {
-  if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
-    const user = await service.auth.user();
+service.emitter.on('aljaar:auth:login', async ({ event, session }) => {
+  const user = await service.auth.user();
+  const profile = document.querySelector('#profile');
 
-    console.log(service.user.me())
-
-    const { data, error } = await service.auth.updateLocation();
-
-    if (!error) {
-      console.log(data)
-    }
-
-    const profile = document.querySelector('#profile');
-
-    profile.innerHTML = `
-      <img src="${user.profile.avatar_url}" referrerpolicy="no-referrer" width="32" height="32" />
-      <span>Full Name : ${user.profile.full_name}</span>
-      <span>Email : ${user.email}</span>
-    `
-  }
+  profile.innerHTML = `
+    <img src="${user.profile.avatar_url}" referrerpolicy="no-referrer" width="32" height="32" />
+    <span>Full Name : ${user.profile.full_name}</span>
+    <span>Email : ${user.email}</span>
+  `
+  
+  service.auth.updateLocation();
 });

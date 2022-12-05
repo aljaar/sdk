@@ -1,4 +1,6 @@
 import mitt from 'mitt';
+import center from '@turf/center';
+import { points } from '@turf/helpers';
 
 export const emitter = mitt(); 
 
@@ -56,4 +58,29 @@ export const useGeoJson = (products) => {
     type: 'FeatureCollection',
     features
   }
+}
+
+export const useGoogleMaps = ({ start, stop }) => {
+  const locations = points([
+    start,
+    stop,
+  ]);
+
+  const centerOfLocations = center(locations).geometry.coordinates;
+
+  return `https://www.google.com/maps/dir/${start.join(',')}/${stop.join(',')}/@${centerOfLocations.join(',')},11z/data=!4m5!4m4!1m1!4e1!1m0!3e0`
+}
+
+/**
+ * 
+ * @param {*} supabase 
+ * @param {string} geography 
+ * @returns {Promise<{lat: string,lon: string}>}
+ */
+export const geographyToCoordinates = async (supabase, geography) => {
+  const { data: coordinates } = await supabase.rpc('geoencoder', {
+    geo: geography
+  });
+
+  return coordinates;
 }

@@ -1,5 +1,5 @@
 import { v4 as uuid } from 'uuid';
-import { emitter, wrapper, useProduct, useGeoJson } from './helpers/wrapper';
+import { emitter, wrapper, useProduct, useGeoJson, useGoogleMaps } from './helpers/wrapper';
 import * as validator from './helpers/validate';
 
 function Aljaar({ supabase }) {
@@ -10,7 +10,7 @@ function Aljaar({ supabase }) {
     tags: []
   };
   const redirect = {
-    onResetPassword: 'http://localhost:3000/'
+    onResetPassword: 'http://localhost:3000/#/reset-password'
   }
 
   const { data: { publicUrl: avatar_public } } = supabase.storage
@@ -24,8 +24,6 @@ function Aljaar({ supabase }) {
   })
 
   supabase.auth.onAuthStateChange((event, session) => {
-    console.log({ event, session })
-
     states.auth_state = event;
     
     if (session) {
@@ -36,7 +34,22 @@ function Aljaar({ supabase }) {
       states.user = null;
     }
 
-    emitter.emit('aljaar:on:auth', { event, session });
+    switch (event) {
+      case 'SIGNED_IN':
+      case 'TOKEN_REFRESHED':
+        emitter.emit('aljaar:auth:login', { event, session });
+
+        if (event === 'TOKEN_REFRESHED') {
+          emitter.emit('aljaar:auth:refreshed', { event, session });
+        }
+        break;
+      case 'SIGNED_OUT':
+        emitter.emit('aljaar:auth:logout', { event, session });
+        break;
+      default:
+        emitter.emit('aljaar:on:auth', { event, session });
+        break;
+    }
   });
 
   return {
@@ -95,7 +108,12 @@ function Aljaar({ supabase }) {
       resetPassword (email) {
         return wrapper(() => supabase.auth.resetPasswordForEmail(email, {
           redirectTo: redirect.onResetPassword,
-        }))
+        }));
+      },
+      updatePassword (password) {
+        return wrapper(() => supabase.auth.updateUser({
+          password
+        }));
       },
       updateLocation () {
         return new Promise((resolve) => {
@@ -327,17 +345,31 @@ function Aljaar({ supabase }) {
       }
     },
     transaction: {
+      async waiting () {
+        const { data: transactions } = await supabase.from('transactions')
+          .select('id, user_id, owner_id, product_id, created_at, products ( title, product_images (image) )')
+          .eq('owner_id', states.user.id)
+          .eq('status', 'waiting');
+
+        const user_id = transactions.map(tx => tx.user_id);
+        const { data: users } = await supabase.from('profiles')
+          .select('user_id, full_name, avatar_url, status')
+          .in('user_id', user_id);
+
+        return {
+          data: transactions.map(tx => ({
+            ...tx,
+            user: users.find(user => user.user_id == tx.user_id),
+          }))
+        }
+      },
+      // List of approved transactions and ready to pickup and need some review
       needReviews () {
         return wrapper(() => supabase.from('transactions')
           .select('*, products ( title, product_images (image) )')
           .eq('user_id', states.user.id)
           .eq('status', 'approved')
           .is('rating', null));
-      },
-      waiting () {
-        return wrapper(() => supabase.from('transactions').select('*')
-          .eq('owner_id', states.user.id)
-          .eq('status', 'waiting'));
       },
       request(id) {
         return wrapper(() => supabase.rpc('request_transactions', {
@@ -357,6 +389,25 @@ function Aljaar({ supabase }) {
           response: 'rejected',
           reason
         }));
+      },
+      review (id, { rating, comment }) {
+        return wrapper(() => supabase.rpc('review_transactions', {
+          tx_id: id,
+          rating_value: rating,
+          comment_value: comment
+        }));
+      }
+    },
+    helpers: {
+      googleMaps ({ start, end }) {
+        const link = useGoogleMaps({ start, end });
+
+        return {
+          link,
+          openLink () {
+            window.open(link, '_blank');
+          }
+        }
       }
     }
   }

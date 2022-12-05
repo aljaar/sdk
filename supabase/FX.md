@@ -205,7 +205,8 @@ create or replace function get_transactions(p_id int8) returns table (
         transactions.status
       from transactions
         inner join profiles on profiles.user_id = transactions.user_id
-      where transactions.product_id = p_id;
+      where transactions.product_id = p_id
+      group by transactions.id;
   end
 $$ language plpgsql;
 ```
@@ -232,6 +233,7 @@ create or replace function request_transactions(p_id int8) returns text
 as $$
   declare
     product record;
+    tx_id int8;
   begin
     -- set variable product
     select * into product from products where id = p_id;
@@ -241,13 +243,19 @@ as $$
       return 'Whopss, owner of the product cannot make request for him self.'::text;
     end if;
 
+    -- the user already made transactions on this product before?
+    if exists (select id from transactions where product_id = p_id and user_id = auth.uid()) then
+      return 'Whopss, you already made request on this product before.'::text;
+    end if;
+
     -- is there any stock available on products?
     if (product.qty <= 0) then
       return 'Whopss, there is no stock available to share.'::text;
     end if;
 
     -- if stock available the make a request (transactions)
-    insert into transactions (user_id, owner_id, product_id) values (auth.uid(), product.user_id, p_id);
+    insert into transactions (user_id, owner_id, product_id) values (auth.uid(), product.user_id, p_id) returning id into tx_id;
+    insert into transaction_logs (transaction_id, status) values (tx_id, 'waiting'::text);
 
     return 'Product request has been sent, waiting for the owner response.'::text;
   end
@@ -263,7 +271,7 @@ as $$
   declare
     transaction record;
   begin
-    select id, product_id into transaction from transactions where id = tx_id;
+    select id, product_id, status into transaction from transactions where id = tx_id limit 1;
 
     if not found then
       return false;
@@ -277,11 +285,13 @@ as $$
       -- approve
       update transactions set status='approved'::varchar where id = tx_id;
       update products set qty=(qty-1) where id = transaction.product_id;
+      insert into transaction_logs (transaction_id, status) values (tx_id, 'approved'::text);
 
       return true;
     elsif (response = 'rejected'::text) then
       -- reject
       update transactions set status='rejected'::varchar, reason=response where id = tx_id;
+      insert into transaction_logs (transaction_id, status) values (tx_id, 'rejected'::text);
     
       return true;
     else
@@ -296,13 +306,20 @@ $$ language plpgsql;
 create or replace function review_transaction (tx_id int8, rating_value numeric, comment_value text) returns boolean
 as $$
   declare
-    transaction record := (select id, product_id from transactions where id = tx_id);
+    transaction record;
   begin
+    select id, user_id into transaction from transactions where id = tx_id limit 1;
+
     if not found then
       return false;
     end if;
 
-    update transactions set rating=rating_value::float4, comment=comment_value where id = tx_id;
+    if (transaction.user_id != auth.uid()) then
+      return false;
+    end if;
+
+    update transactions set status='success'::text, rating=rating_value::float4, comment=comment_value where id = tx_id;
+    insert into transaction_logs (transaction_id, status) values (tx_id, 'success'::text);
 
     return true;
   end
@@ -322,6 +339,62 @@ as $$
       insert into product_analytics (product_id) values (p_id);
     end if;
   end
+$$ language plpgsql;
+```
+
+##### Geography Encoder
+```sql
+create or replace function geoencoder (geo text) returns table (
+  lat float,
+  lon float
+) as $$
+  begin
+    return query
+      select 
+        st_y(geo::geometry) as lat,
+        st_x(geo::geometry) as lon;
+  end
+$$ language plpgsql;
+```
+
+#### Profile Listed Product Count
+```sql
+create or replace function product_stats () returns table (
+  all numeric,
+  monthly numeric
+) as $$
+  begin
+    return query
+      select 
+        (select count(*) from products where user_id = auth.uid()) as all,
+        (select count(*) from products where user_id = auth.uid() and extract(month from created_at) = extract(month from now())) as monthly;
+  end
+$$ language plpgsql;
+```
+
+#### Location Encoder
+```sql
+create or replace function geography_to_lat_long_address(location_text text) returns json 
+as $$
+  declare
+    geom geometry;
+    lat float;
+    long float;
+    address text;
+    response json;
+  begin
+    -- Convert geography type to latitude and longitude
+    geom := location_text::geometry;
+    lat := ST_Y(geom);
+    long := ST_X(geom);
+
+    -- Use pgsql-http extension to make a request to a geocoding service to get the physical address
+    select content::json->'result'->>'address' into address from http_get('https://xxxxx/?latlon=' || lat || ',' || long);
+
+    -- Construct and return the response as a json object
+    response := json_build_object('latitude', lat, 'longitude', long, 'address', address);
+    return response;
+  end;
 $$ language plpgsql;
 ```
 

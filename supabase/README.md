@@ -90,5 +90,4 @@ end;
 $$ language plpgsql security definer;
 
 ST_SetSRID(ST_MakePoint(location->'long'::double precision, location->'lat'::double precision), 4326)
-
 ```

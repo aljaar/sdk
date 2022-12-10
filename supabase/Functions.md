@@ -1,4 +1,4 @@
-## Get neighbor count
+#### Get Neigbor Count around us
 
 ```sql
 create or replace function get_neighbor_count(radius int) 
@@ -14,6 +14,8 @@ begin
 end
 $$;
 ```
+
+#### Get Neighbor Products
 
 ```sql
 create or replace function get_neighbor_products(radius int) 
@@ -31,11 +33,11 @@ as $$
 $$;
 ```
 
+#### Create a Product / Item
+
 ```sql
--- CREATE PRODUCTS
 create or replace function create_product(product_raw text, images text[], drop_time text[]) 
 returns setof products
-language plpgsql
 as $$
   declare
     product json;
@@ -54,7 +56,7 @@ as $$
       values (product_id, image_path);
     end loop;
 
-    foreach tag in select json_array_elements from json_array_elements(product->'tags') loop
+    for tag in select json_array_elements from json_array_elements(product->'tags') loop
       insert into product_tags (product_id, tag_id)
       values (product_id, tag);
     end loop;
@@ -62,8 +64,10 @@ as $$
     return query 
       select * from products where id = product_id;
   end
-$$;
+$$ language plpgsql;
 ```
+
+#### Add Product Tags
 
 ```sql
 create or replace function add_product_tag(p_id int8, tags int8[]) returns void as $$
@@ -79,17 +83,38 @@ create or replace function add_product_tag(p_id int8, tags int8[]) returns void 
 $$ language plpgsql;
 ```
 
+#### Delete Product Tag
+
+```sql
+create or replace function delete_product_tag(p_id int8, tags int8[]) returns void as $$
+  declare
+    t_id int8;
+  begin
+    foreach t_id in array tags loop
+      if not exists (select id from product_tags where product_id = p_id and tag_id = t_id) then
+        delete from product_tags where product_id = p_id and tag_id = t_id;
+      end if;
+    end loop;
+  end
+$$ language plpgsql;
+```
+
+#### Delete Product
+
 ```sql
 -- Delete Product
 create or replace function delete_product(p_id int8) returns boolean as $$
   declare
     image_item record;
+    tx_item record;
   begin
     if not exists (select id from products where id = p_id) then
       return false;
     end if;
     -- delete tags
     delete from product_tags where product_id = p_id;
+    -- delete analytics
+    delete from product_analytics where product_id = p_id;
     -- delete images
     for image_item in (select image from product_images where product_id = p_id) loop
       -- delete image on storage object
@@ -98,7 +123,12 @@ create or replace function delete_product(p_id int8) returns boolean as $$
       delete from product_images where product_id = p_id;
     end loop;
     -- delete transaction
-    delete from transactions where product_id = p_id;
+    for tx_item in (select id from transactions where product_id = p_id) loop
+      -- delete tx logs
+      delete from transaction_logs where transaction_id = tx_item.id;
+      -- delete tx
+      delete from transactions where id = tx_item.id;
+    end loop;
     -- delete product
     delete from products where id = p_id;
 
@@ -107,6 +137,7 @@ create or replace function delete_product(p_id int8) returns boolean as $$
 $$ language plpgsql;
 ```
 
+#### Like Product
 
 ```sql
 -- Like Product
@@ -129,6 +160,8 @@ create or replace function like_product(p_id int8) returns int as $$
 $$ language plpgsql;
 ```
 
+#### Get Near Products
+
 ```sql
 create or replace function get_near_products(radius int) returns table (
   product_id int8,
@@ -141,12 +174,15 @@ create or replace function get_near_products(radius int) returns table (
   image varchar,
   lat float,
   lon float,
-  distance float
+  distance float,
+  category varchar,
+  view numeric,
+  expired_at date
 ) as $$
   declare
     user_location geography;
   begin
-    select location as user_location from profiles where auth.uid() = user_id into user_location;
+    select location into user_location from profiles where auth.uid() = user_id;
 
     return query 
       select
@@ -160,19 +196,23 @@ create or replace function get_near_products(radius int) returns table (
         (array_agg(distinct(product_images.image)))[1] as image,
         st_y(drop_point::geometry) as lat,
         st_x(drop_point::geometry) as lon,
-        ST_Distance(user_location::geometry, products.drop_point::geometry) as distance
+        ST_Distance(user_location::geography, products.drop_point::geography) as distance,
+        products.category,
+        product_analytics.view,
+        products.expired_at
       from
         products
         inner join profiles on profiles.user_id = products.user_id
         inner join product_images on products.id = product_images.product_id
         inner join product_tags on products.id = product_tags.product_id
+        left join product_analytics on products.id = product_analytics.product_id
         inner join tags on tags.id = product_tags.tag_id
         left join likes on products.id = likes.product_id
       where
-        ST_DWithin((products.drop_point)::geometry, (user_location)::geometry, radius) and 
-        auth.uid() <> products.user_id
+        (ST_DWithin(user_location::geography, products.drop_point::geography, radius) and 
+        (auth.uid() <> products.user_id))
       group by
-        (products.id);
+        (products.id, product_analytics.view);
   end
 $$ language plpgsql;
 ```
@@ -244,7 +284,7 @@ as $$
     end if;
 
     -- the user already made transactions on this product before?
-    if exists (select id from transactions where product_id = p_id and user_id = auth.uid()) then
+    if exists (select id from transactions where product_id = p_id and user_id = auth.uid() and status = 'waiting') then
       return 'Whopss, you already made request on this product before.'::text;
     end if;
 
@@ -257,7 +297,7 @@ as $$
     insert into transactions (user_id, owner_id, product_id) values (auth.uid(), product.user_id, p_id) returning id into tx_id;
     insert into transaction_logs (transaction_id, status) values (tx_id, 'waiting'::text);
 
-    return 'Product request has been sent, waiting for the owner response.'::text;
+    return concat(tx_id::text, ':Product request has been sent, waiting for the owner response.')::text;
   end
 $$ language plpgsql;
 ```
@@ -360,14 +400,14 @@ $$ language plpgsql;
 #### Profile Listed Product Count
 ```sql
 create or replace function product_stats () returns table (
-  all numeric,
-  monthly numeric
+  all_time bigint,
+  monthly bigint
 ) as $$
   begin
     return query
       select 
-        (select count(*) from products where user_id = auth.uid()) as all,
-        (select count(*) from products where user_id = auth.uid() and extract(month from created_at) = extract(month from now())) as monthly;
+        (select count(*) from products where user_id = auth.uid() and status = 'deleted') as all_time,
+        (select count(*) from products where user_id = auth.uid() and status = 'deleted' and extract(month from created_at) = extract(month from now())) as monthly;
   end
 $$ language plpgsql;
 ```
